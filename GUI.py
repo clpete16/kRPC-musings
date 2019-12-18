@@ -99,7 +99,6 @@ class GUI:
                 telem = updateTelemetry(conn)
                 self.bottomFrame.grid_forget()
 
-                rf = self.rightFrame
                 self.apoapsis_readout.configure(text=m_to_xm(telem.apoapsis))
                 self.time_to_apoapsis_readout.configure(text=(str(round(telem.time_to_apo,1)) + " s"))
                 self.periapsis_readout.configure(text=m_to_xm(telem.periapsis))
