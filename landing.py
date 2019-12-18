@@ -86,7 +86,6 @@ class Telemetry:
         while not self.landed:
 
             self.update_telem()
-            vessel = self.vessel
 
             burn_altitude = estimate_burn_altitude(self)
             if self.vertical_speed < -1 and self.altitude > 1:
@@ -190,7 +189,7 @@ class GUI:
         self.altitude_out.grid(row=5,column=1)
 
     def reset_parameters(self):
-        quitApp()
+        self.quitApp()
         initiate_test(self.conn)
         self.__init__(self.conn)
 
@@ -266,7 +265,6 @@ def main():
     conn = krpc.connect("GUI Program")
     global gui
     gui = GUI(conn)
-    spacecraft = Telemetry(conn, gui)
     gui.root.mainloop()
     initiate_test(conn) 
 

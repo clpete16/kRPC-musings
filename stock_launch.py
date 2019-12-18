@@ -100,8 +100,7 @@ class launch_gui:
 
 def main():
     conn = krpc.connect(name="LEO Auto-pilot")
-    for i in range(10):
-        print('\n')
+    print('\n'*10)
     params = ascent_parameters()
     launch_gui(params)
     ascent(conn, params)
@@ -153,7 +152,6 @@ def ascent(conn, params):
 
         alt = vessel.flight(srf_frame).mean_altitude
         apoap = vessel.orbit.apoapsis_altitude
-        periap = vessel.orbit.periapsis_altitude
         heat_flux = 0.001*vessel.flight(srf_frame).dynamic_pressure*vessel.flight(srf_frame).speed
         ut = conn.space_center.ut
 
