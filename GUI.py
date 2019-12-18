@@ -147,6 +147,25 @@ def m_to_xm(meters):
         return (str(round(meters, 3)) + " Mm")
 
 
+def yn2tf(string):
+    # Convert yes, no to true, false
+    string = string.lower()
+    if int(string) == 1 or int(string) == 0:
+        return int(string)
+    elif string == 'y' or string == 'yes':
+        return 1
+    elif string == 'n' or string == 'no':
+        return 0
+
+
+def tf2yn(boolean):
+    # Convert true, false to yes, no
+    if boolean:
+        return 'YES'
+    if not boolean:
+        return 'NO'
+
+
 def updateTelemetry(conn):
     try:
         return Telemetry(conn)

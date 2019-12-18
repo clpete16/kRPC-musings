@@ -1,13 +1,12 @@
 import math as m
 import time
-from vector_math import *
+import vector_math as vm
 
 '''
 Requires inputs:
 r1_v & r2_v, position vectors of departure and arrival (Earth, Mars, etc.)
-dNu, true anomaly between positions
 t, time of flight
-mu, standard gravitational parameter of primary transfer influencer
+mu, standard gravitational parameter of primary influencer
 '''
 
 '''
@@ -167,7 +166,6 @@ def check_p_value(p, k, l, m, r1, r2, mu, dNu):
     a_val = sma(k, l, m, p)
     f = f_nu(r2, p, dNu)
     g = g_nu(r1, r2, dNu, mu, p)
-    fdot = fdot_nu(mu, p, dNu, r1, r2)
 
     if a_val > 0:
         dE = E_ellipt_cos(r1, a_val, f)
@@ -182,45 +180,44 @@ def check_p_value(p, k, l, m, r1, r2, mu, dNu):
 
 def find_orbital_elements(orbit):
     x = (1, 0, 0)
-    y = (0, 1, 0)
     z = (0, 0, 1)
 
-    h_vec = cross_product(orbit.r1_vec, orbit.r2_vec)
+    h_vec = vm.cross_product(orbit.r1_vec, orbit.r2_vec)
 
-    e_vec = scalar_multiplication((orbit.v1_val**2 - orbit.mu / orbit.r1_val), orbit.r1_vec)
-    e_vec = vector_subtraction(e_vec, scalar_multiplication(dot_product(orbit.r1_vec, orbit.v1_vec), orbit.v1_vec))
-    e_vec = scalar_multiplication(1 / orbit.mu, e_vec)
+    e_vec = vm.scalar_multiplication((orbit.v1_val**2 - orbit.mu / orbit.r1_val), orbit.r1_vec)
+    e_vec = vm.vector_subtraction(e_vec, vm.scalar_multiplication(vm.dot_product(orbit.r1_vec, orbit.v1_vec), orbit.v1_vec))
+    e_vec = vm.scalar_multiplication(1 / orbit.mu, e_vec)
 
-    n_vec = cross_product(z, h_vec)
+    n_vec = vm.cross_product(z, h_vec)
 
-    orbit.inclination = m.acos(dot_product(z, h_vec) / magnitude(h_vec))
+    orbit.inclination = m.acos(vm.dot_product(z, h_vec) / vm.magnitude(h_vec))
 
-    raan = m.acos(dot_product(x, n_vec) / magnitude(n_vec))
+    raan = m.acos(vm.dot_product(x, n_vec) / vm.magnitude(n_vec))
     if n_vec[1] < 0:
         raan = 2*m.pi - raan
     orbit.longitude_of_ascending_node = raan
 
-    arg_peri = m.acos(dot_product(n_vec, e_vec) / (magnitude(n_vec)*magnitude(e_vec)))
+    arg_peri = m.acos(vm.dot_product(n_vec, e_vec) / (vm.magnitude(n_vec)*vm.magnitude(e_vec)))
     if e_vec[2] < 0:
         arg_peri = 2*m.pi - arg_peri
     orbit.argument_of_periapsis = arg_peri
 
-    orbit.true_anomaly_at_epoch = m.acos(dot_product(e_vec, orbit.r1_vec) / (magnitude(e_vec)*orbit.r1_val))
+    orbit.true_anomaly_at_epoch = m.acos(vm.dot_product(e_vec, orbit.r1_vec) / (vm.magnitude(e_vec)*orbit.r1_val))
 
 
 def main(t, r1_v, r2_v, mu):
     new_transfer_orbit = TransferOrbit()
 
     new_transfer_orbit.r1_vec = r1_v
-    new_transfer_orbit.r1_val = magnitude(r1_v)
+    new_transfer_orbit.r1_val = vm.magnitude(r1_v)
     new_transfer_orbit.r2_vec = r2_v
-    new_transfer_orbit.r2_val = magnitude(r2_v)
+    new_transfer_orbit.r2_val = vm.magnitude(r2_v)
     new_transfer_orbit.mu = mu
 
-    r1 = magnitude(r1_v)
-    r2 = magnitude(r2_v)
+    r1 = vm.magnitude(r1_v)
+    r2 = vm.magnitude(r2_v)
 
-    dNu = m.acos(dot_product(r1_v, r2_v) / (r1 * r2))
+    dNu = m.acos(vm.dot_product(r1_v, r2_v) / (r1 * r2))
 
     k_val = k_func(r1, r2, dNu)
     l_val = l_func(r1, r2)
@@ -229,14 +226,12 @@ def main(t, r1_v, r2_v, mu):
     if dNu < m.pi:
         # p_i < p < inf
         p_i_val = p_i(k_val, l_val, m_val)
-        p_max = m.inf
         p_current = 1.25*p_i_val
         p_prev = 1.5*p_i_val
 
     elif dNu > m.pi:
         # 0 < p < p_ii
         p_ii_val = p_ii(k_val, l_val, m_val)
-        p_min = 0
         p_current = 0.75*p_ii_val
         p_prev = 0.5*p_ii_val
 
@@ -270,11 +265,9 @@ def main(t, r1_v, r2_v, mu):
     v2_vec = v2(fdot_val, gdot_val, r1_v, v1_vec)
 
     new_transfer_orbit.v1_vec = v1_vec
-    new_transfer_orbit.v1_val = magnitude(v1_vec)
+    new_transfer_orbit.v1_val = vm.magnitude(v1_vec)
     new_transfer_orbit.v2_vec = v2_vec
-    new_transfer_orbit.v2_val = magnitude(v2_vec)
-
-    # find_orbital_elements(new_transfer_orbit)
+    new_transfer_orbit.v2_val = vm.magnitude(v2_vec)
 
     return new_transfer_orbit
 
@@ -282,13 +275,10 @@ def main(t, r1_v, r2_v, mu):
 if __name__ == "__main__":
     # http://www.braeunig.us/space/problem.htm#5.3
 
-    start = time.time()
+    t = 207 * 24 * 60 * 60                  # seconds
+    r1_v = (0.473265, -0.899215, 0)         # AU
+    r2_v = (0.066842, 1.561256, 0.030948)   # AU
+    mu = 3.964016 * 10**-14                 # AU^3 / s^2
+    orbit = main(t, r1_v, r2_v, mu)
 
-    for i in range(100000):
-        t = 207 * 24 * 60 * 60                  # seconds
-        r1_v = (0.473265, -0.899215, 0)         # AU
-        r2_v = (0.066842, 1.561256, 0.030948)   # AU
-        mu = 3.964016 * 10**-14                 # AU^3 / s^2
-        orbit = main(t, r1_v, r2_v, mu)
-
-    print(time.time() - start)
+    print('--')

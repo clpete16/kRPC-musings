@@ -4,6 +4,7 @@ import gauss_problem as gp
 
 '''
 Program to plan a Hohmann transfer to a target within the same SOI
+VERY WIP
 '''
 
 # Values in meters, seconds, kg, radians unless otherwise specified
@@ -100,7 +101,7 @@ def get_phase_angle(ra, rb, atx, mu, targ):
     ecc_anomaly = calc_eccentric_anomaly(nu, ecc)
     TOF = time_of_flight(ecc_anomaly, ecc, atx, mu)
 
-    wt = targ.
+    wt = targ.angular_velocity
     wt = wt * m.pi / 180 / 3600 / 24 # rad / s
 
     print(m.degrees(phase_angle(nu, TOF, wt)))
@@ -124,4 +125,8 @@ if __name__ == "__main__":
 
     print(m.degrees(phase_angle(nu, TOF, wt)))
 
-    orbit = gp.main()
+    t = 207 * 24 * 60 * 60                  # seconds
+    r1_v = (0.473265, -0.899215, 0)         # AU
+    r2_v = (0.066842, 1.561256, 0.030948)   # AU
+    mu = 3.964016 * 10**-14                 # AU^3 / s^2
+    orbit = gp.main(t, r1_v, r2_v, mu)

@@ -8,7 +8,7 @@ from circ_at_ap import circ_node_ap
 from GUI import yn2tf, tf2yn
 
 '''
-Launch Auto Pilot for a linearly staged or a linear + SRB launch vehicle.
+Launch autopilot for a linearly staged launch vehicle.
 May work for other vehicles with manual staging.
 Configured for Real Solar System.
 '''

@@ -9,12 +9,10 @@ from multiprocessing import Process
 from circ_at_ap import circ_node_ap
 from circ_at_pe import circ_node_pe
 
-
 '''
 GUI to run commands and see telemetry with
 Configured for Stock Solar System
 '''
-
 
 def doAscent(conn):
     gui.message("Performing ascent.")
@@ -22,7 +20,6 @@ def doAscent(conn):
         ascent_process = Process(target=stock_launch.main)
         ascent_process.start()
     except:
-        print(e)
         print('Ascent failed')
 
 
