@@ -76,11 +76,12 @@ class Telemetry:
     def create_throttle_PID(self):
         # Throttle will be controlled based on the estimated burn altitude
         self.throttle_PID = pid.PID()
-        self.throttle_PID.Kp = 1
+        self.throttle_PID.Kp = 0.025
         self.throttle_PID.Ki = 0.01
-        self.throttle_PID.Kd = 0.0001
+        self.throttle_PID.Kd = 0.001
         self.throttle_PID.clampLow = 0
-        self.throttle_PID.clampHi = 1        
+        self.throttle_PID.clampHi = 1
+        self.throttle_PID.clampI = 100
 
     def main_control_loop(self):
         while not self.landed:
@@ -91,31 +92,43 @@ class Telemetry:
             if self.vertical_speed < -1 and self.altitude > 1:
                 if burn_altitude > self.altitude:
                     self.descending = True
+                    print('Estimated altitude: ' + str(burn_altitude))
+                    print('Initiated at altitude: ' + str(self.altitude))
                     self.descent_control_loop()
             
-            time.sleep(0.100)
+            time.sleep(0.1)
 
     def descent_control_loop(self):
+        final_descent = True
         while self.descending:
             
             self.update_telem()
             vessel = self.vessel
 
-            burn_altitude = estimate_burn_altitude(self)
-            vessel.control.throttle = self.throttle_PID.update(self.altitude - burn_altitude)
-            point_retro_final_descent(self.conn)
+            if self.vertical_speed <= -10:
+                burn_altitude = estimate_burn_altitude(self) + 1
+                vessel.control.throttle = self.throttle_PID.update(self.altitude - burn_altitude)
+                point_retro_final_descent(self.conn)
 
-            if self.altitude < 0.1:
+            elif self.vertical_speed > -10:
+                if final_descent:
+                    vessel.auto_pilot.reference_frame = vessel.surface_reference_frame
+                    vessel.auto_pilot.target_direction = (1, 0, 0)
+                    self.throttle_PID.set_setpoint(-1)
+                    self.throttle_PID.Kp = 0.4
+                    self.throttle_PID.Kd = 0.05
+                    final_descent = False
+    
+                vessel.control.throttle = self.throttle_PID.update(self.vertical_speed)
+
+            if self.altitude < 0 or vessel.situation == 'landed' or self.vertical_speed > 0:
                 print("Impact velocity: " + str(self.vertical_speed))
                 self.descending = False
                 self.landed = True
                 vessel.control.throttle = 0
                 vessel.control.rcs = False
 
-            if self.vertical_speed > -0.5:
-                self.throttle_PID.I = 0
-
-            time.sleep(0.100)
+            time.sleep(0.1)
         
         self.main_control_loop()
 
@@ -209,35 +222,7 @@ def estimate_burn_altitude(telem):
     # Estimate the burn altitude using kinematic equation V^2 = V0^2 + 2*a*h
     thrust_force = telem.max_thrust * math.sin(telem.pitch)
     acceleration = thrust_force / telem.mass - telem.g
-    return (telem.vertical_speed**2 - 0.5**2) / (2 * acceleration)
-
-
-def estimate_burn_time(telem):
-    # Rearranged Tsiolkovsky Rocket Equation
-    mass = telem.mass
-    g = telem.g
-    weight = mass*g
-    T = telem.max_thrust
-    v_eq = telem.isp*g
-    v0 = abs(telem.vertical_speed)
-    return mass*v_eq/(T-weight)*(1 - math.exp(-v0/(v_eq)))
-
-
-def estimate_impact_time(telem):
-    # Estimate impact time using kinematic equation 0 = 0.5*a*t^2 + v0*t + h
-    thrust_force = telem.max_thrust * math.sin(telem.pitch)
-    vertical_aero_force = telem.aero_forces[2]
-    g_acc = telem.g
-    acceleration = (thrust_force + vertical_aero_force) / telem.mass + g_acc
-
-    a = 0.5*acceleration
-    b = telem.vertical_speed
-    c = telem.altitude
-    inner = math.sqrt(b**2 - 4*a*c)
-    root_one = (-b + inner) / (2*a)
-    root_two = (-b - inner) / (2*a)
-    
-    return root_one if root_one > 0 else root_two
+    return 1.1*(telem.vertical_speed**2 - 0.5**2) / (2 * acceleration)
 
 
 def initiate_test(conn):
@@ -265,8 +250,7 @@ def main():
     conn = krpc.connect("GUI Program")
     global gui
     gui = GUI(conn)
-    gui.root.mainloop()
-    initiate_test(conn) 
+    Telemetry(conn, gui)
 
 
 if __name__ == "__main__":
