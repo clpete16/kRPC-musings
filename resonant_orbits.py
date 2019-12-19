@@ -26,6 +26,7 @@ class resonant_parameters(object):
         '''
         self.insertion = insertion
 
+
 class resonant_gui:
     def __init__(self, params):
         self.params = params
@@ -77,7 +78,7 @@ def main():
     set_resonant_orbit(connection, mission_parameters)
 
 
-def calc_insertion_burn(conn, params):
+def set_resonant_orbit(conn, params):
     '''
     Insert the main craft into a resonant orbit to target orbit
     '''
@@ -129,10 +130,5 @@ def calc_insertion_burn(conn, params):
                                 prograde=(v2-v1))
 
 
-def set_resonant_orbit(conn, params):
-    calc_insertion_burn(conn, params)
-
-
 if __name__ == "__main__" : 
     main()
-    execute_node(conn)
