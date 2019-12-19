@@ -12,7 +12,6 @@ class PID(object):
 
     and the code and discussions in the blog at:
     http://brettbeauregard.com/blog/2011/04/improving-the-beginners-pid-introduction/
-    
     '''  
     '''
     PID controllers are advanced ways to control 
@@ -44,9 +43,9 @@ class PID(object):
         self.P = 0.0    # Value for proportional error
         self.I = 0.0    # Value for integral error
         self.D = 0.0    # Value for rate of change
-        self.setpoint = 0.0  #Target value for controller
-        self.clampI = 10.0
-        self.clampHi = 1.0  #clamps i_term to prevent 'windup.'
+        self.setpoint = 0.0     # Target value for controller
+        self.clampI = 10.0      # Limit integral value to prevent excessive buildup
+        self.clampHi = 1.0      # Limit output signal
         self.clampLow = -1.0
         self.lastTime = time.time()
         self.lastMeasure = 0.0
