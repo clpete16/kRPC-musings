@@ -226,14 +226,14 @@ def main(t, r1_v, r2_v, mu):
     if dNu < m.pi:
         # p_i < p < inf
         p_i_val = p_i(k_val, l_val, m_val)
-        p_current = 1.25*p_i_val
+        p_current = 1.4*p_i_val
         p_prev = 1.5*p_i_val
 
     elif dNu > m.pi:
         # 0 < p < p_ii
         p_ii_val = p_ii(k_val, l_val, m_val)
-        p_current = 0.75*p_ii_val
-        p_prev = 0.5*p_ii_val
+        p_current = 0.9*p_ii_val
+        p_prev = 0.8*p_ii_val
 
     t_current = check_p_value(p_current, k_val, l_val, m_val, r1, r2, mu, dNu)
     t_prev = check_p_value(p_prev, k_val, l_val, m_val, r1, r2, mu, dNu)

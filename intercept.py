@@ -1,6 +1,8 @@
 import krpc
 import math as m
 import gauss_problem as gp
+import vector_math as vm
+import time
 
 '''
 Program to plan a Hohmann transfer to a target within the same SOI
@@ -24,15 +26,29 @@ def calc_eccentricity_transfer(ra, atx):
 def calc_true_anomaly(atx, ra, rb):
     ecc = calc_eccentricity_transfer(ra, atx)
     aa = atx*(1 - ecc**2) / rb
-    return m.acos((aa - 1)/ecc)
+    try:
+        return m.acos((aa - 1)/ecc)
+    except ValueError:
+        # Floating point errors :(
+        if (aa - 1) / ecc > 1:
+            return 0
+        elif (aa - 1) / ecc < -1:
+            return m.pi
 
 
-def period(atx, mu):
-    return 2*m.pi*m.sqrt(atx**3/mu)
+def calc_phase_angle(ra, rb, atx, mu, targ):
+    # Angle which we should target to achieve a transfer
+    nu = calc_true_anomaly(atx, ra, rb)
+    TOF = time_of_flight(ra, rb, atx, mu)
+    wt = 2 * m.pi / targ.orbit.period # rad / s
+    return nu - wt*TOF
 
 
-def time_of_flight(ecc_anomaly, ecc, atx, mu):
+def time_of_flight(ra, rb, atx, mu):
     # Time of flight for orbit with ecc & atx across ecc_anomaly
+    ecc = calc_eccentricity_transfer(ra, atx)
+    nu = calc_true_anomaly(atx, ra, rb)
+    ecc_anomaly = calc_eccentric_anomaly(nu, ecc)
     return (ecc_anomaly - ecc*m.sin(ecc_anomaly))*m.sqrt(atx**3 / mu)
 
 
@@ -40,93 +56,115 @@ def calc_eccentric_anomaly(nu, ecc):
     return m.acos((ecc + m.cos(nu))/(1 + ecc*m.cos(nu)))
 
 
-def phase_angle(dNu, dt, wt):
-    # state 1 == departure, state 2 == arrival
-    # wt = angular velocity of target body to sun
-    return dNu - wt*dt
-
-
 def vis_viva(r, a, mu):
     # Orbital velocity equation
     return m.sqrt(mu*(2/r - 1/a))
 
 
-def seconds_to_days(seconds):
-    days = 0
-    hours = 0
-    minutes = 0
-
-    seconds_in_min = 60
-    seconds_in_hour = 60 * seconds_in_min
-    seconds_in_day = 24 * seconds_in_hour
+def hyperbolic_excess_velocity(transfer, target, ref, ut):
+    # Excess velocity upon arrival to a body in a different SOI
+    target_velocity = target.velocity(ref)
     
-    while seconds > seconds_in_day:
-        seconds -= seconds_in_day
-        days += 1
-    while seconds > seconds_in_hour:
-        seconds -= seconds_in_hour
-        hours += 1
-    while seconds > seconds_in_min:
-        seconds -= seconds_in_min
-        minutes += 1
-    seconds = round(seconds, 3)
-    return (days, hours, minutes, seconds)
-
-
-def print_days_format(ttp):
-    print(
-        "Time: " +
-        str(ttp[0]) + " days, " +
-        str(ttp[1]) + " hours, " + 
-        str(ttp[2]) + " minutes, " +
-        str(ttp[3]) + " seconds"
-    )
-
 
 def get_target_main_influence(conn):
+    # Determine what body the target is orbiting and target type
     targ_body = conn.space_center.target_body
     targ_vess = conn.space_center.target_vessel
     if targ_body:
-        return targ_body.orbit.body
+        return targ_body, "body"
     elif targ_vess:
-        return targ_vess.orbit.body
+        return targ_vess, "vessel"
     else:
         print('No target selected.')
         return False
 
 
-def get_phase_angle(ra, rb, atx, mu, targ):
-    ecc = calc_eccentricity_transfer(ra, atx)
-    nu = calc_true_anomaly(atx, ra, rb)
-    ecc_anomaly = calc_eccentric_anomaly(nu, ecc)
-    TOF = time_of_flight(ecc_anomaly, ecc, atx, mu)
+def calc_transfer_date(ut, ref, vessel, targ, mu):
+    '''
+    Calculate the time after epoch of when the transfer should be initiated
+    Currently really only works for orbits higher than the starting orbit
+    Does not include plane changes
+    '''
+    timestep = vessel.orbit.period / 120 # Move 3 degrees at a time
+    x = (1, 0, 0)
+    refining = False
 
-    wt = targ.angular_velocity
-    wt = wt * m.pi / 180 / 3600 / 24 # rad / s
+    while True:
+        ra_vec = vessel.orbit.position_at(ut, ref)
+        rb_vec = targ.orbit.position_at(ut, ref)
 
-    print(m.degrees(phase_angle(nu, TOF, wt)))
+        # Get vessel and target angles relative to fixed point on orbiting body surface
+        vessel_angle = vm.angle_between_vectors(x, ra_vec)
+        if ra_vec[2] < 0:
+            vessel_angle = 2 * m.pi - vessel_angle
+
+        target_angle = vm.angle_between_vectors(x, rb_vec)
+        if rb_vec[2] < 0:
+            target_angle = 2 * m.pi - target_angle
+
+        current_angle = target_angle - vessel_angle
+        if current_angle < -m.pi:
+            current_angle += 2 * m.pi
+
+        # Get phase angle required for transfer
+        ra = vm.magnitude(ra_vec)
+        rb = vm.magnitude(rb_vec)
+        atx = (ra + rb) / 2
+        phase_angle = calc_phase_angle(ra, rb, atx, mu, targ)
+
+        # Compare actual angle to phase angle
+        diff = abs(phase_angle - current_angle)
+
+        # If close, refine
+        if not refining and diff <= m.pi / 60:
+            refining = True
+            ut -= 3*timestep
+            timestep /= 30
+
+        # If very close, return
+        elif diff <= m.pi / 1800:
+            return ut
+
+        # Else keep looking
+        ut += timestep
+
+
+def main(conn):
+    vessel = conn.space_center.active_vessel
+    current_time = conn.space_center.ut
+
+    if not get_target_main_influence(conn):
+        return
+    else:
+        targ, targ_type = get_target_main_influence(conn)
+
+    if targ.orbit.body == vessel.orbit.body:
+        # Target and vessel share same orbiting body (LEO to Moon etc.)
+        mu = vessel.orbit.body.gravitational_parameter
+        ref_frame = vessel.orbit.body.reference_frame
+        date = calc_transfer_date(current_time, ref_frame, vessel, targ, mu)
+        
+        ra_vec = vessel.orbit.position_at(date, ref_frame)
+        rb_vec = targ.orbit.position_at(date, ref_frame)
+
+        ra = vm.magnitude(ra_vec)
+        rb = vm.magnitude(rb_vec)
+        atx = (ra + rb) / 2
+
+        dv1 = vis_viva(ra, atx, mu) - vis_viva(ra, vessel.orbit.semi_major_axis, mu)
+        vessel.control.add_node(date, prograde=dv1)
+
+        '''
+        Include code to differentiate between vessels and bodies
+        so that we do not transfer to the COM of bodies
+        '''
+
+    elif targ.orbit.body == vessel.orbit.body.orbit.body:
+        # Target in same SOI as current orbiting planet
+        # Should work for Moon to Earth or Earth to Mars etc.
+        pass
+
 
 if __name__ == "__main__":
-    AU = 1.496 * 10**11
-    mu = 1.327 * 10**20
-
-    ra = 1 * AU
-    rb = 1.524 * AU
-    atx = 1.3 * AU
-    
-    ecc = calc_eccentricity_transfer(ra, atx)
-    nu = calc_true_anomaly(atx, ra, rb)
-    ecc_anomaly = calc_eccentric_anomaly(nu, ecc)
-    TOF = time_of_flight(ecc_anomaly, ecc, atx, mu)
-    print_days_format(seconds_to_days(TOF))
-
-    wt = 0.5240 # degrees / day
-    wt = wt * m.pi / 180 / 3600 / 24 # rad / s
-
-    print(m.degrees(phase_angle(nu, TOF, wt)))
-
-    t = 207 * 24 * 60 * 60                  # seconds
-    r1_v = (0.473265, -0.899215, 0)         # AU
-    r2_v = (0.066842, 1.561256, 0.030948)   # AU
-    mu = 3.964016 * 10**-14                 # AU^3 / s^2
-    orbit = gp.main(t, r1_v, r2_v, mu)
+    conn = krpc.connect(name="Interceptor")
+    main(conn)

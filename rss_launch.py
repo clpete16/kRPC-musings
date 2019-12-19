@@ -6,6 +6,7 @@ import tkinter as tk
 from node_execution import execute_node
 from circ_at_ap import circ_node_ap
 from GUI import yn2tf, tf2yn
+from stock_launch import launch_gui, get_resources, deploy_stuff
 
 '''
 Launch autopilot for a linearly staged launch vehicle.
@@ -29,74 +30,6 @@ class ascent_parameters:
         self.target_roll = TARGET_ROLL
         self.do_staging = DO_STAGING
         self.deploy_solar_panels_and_antennae = DEPLOY_SP_ANT
-
-
-class launch_gui:
-    def __init__(self, params):
-        self.params = params
-        self.root = tk.Tk()
-        root = self.root
-
-        root.title("Launch parameters")
-        root.resizable(width=False, height=False)
-        root.protocol('WM_DELETE_WINDOW', self.sendParams)
-
-        self.frame = tk.Frame(root)
-        f = self.frame
-        f.pack()
-
-        self.title = tk.Label(f, text='Please enter the target orbital parameters')
-        self.title.grid(row=0, column=0, columnspan=2)
-
-        row = 1
-        self.target_ap_label = tk.Label(f, text="Target Apoapsis (m):")
-        self.target_ap_label.grid(row=row, column=0)
-        self.target_ap_input = tk.Entry(f)
-        self.target_ap_input.insert(0, params.target_apoapsis)
-        self.target_ap_input.grid(row=row, column=1)
-        row += 1
-
-        self.target_inc_label = tk.Label(f, text="Target Inclination (deg):")
-        self.target_inc_label.grid(row=row, column=0)
-        self.target_inc_input = tk.Entry(f)
-        self.target_inc_input.insert(0, params.target_inclination)
-        self.target_inc_input.grid(row=row, column=1)
-        row += 1
-
-        self.target_roll_label = tk.Label(f, text="Target Roll (deg):")
-        self.target_roll_label.grid(row=row, column=0)
-        self.target_roll_input = tk.Entry(f)
-        self.target_roll_input.insert(0, params.target_roll)
-        self.target_roll_input.grid(row=row, column=1)
-        row += 1
-
-        self.stage_label = tk.Label(f, text="Do staging? (Y/N):")
-        self.stage_label.grid(row=row, column=0)
-        self.stage_input = tk.Entry(f)
-        self.stage_input.insert(0, tf2yn(params.do_staging))
-        self.stage_input.grid(row=row, column=1)
-        row += 1
-
-        self.deploy_label = tk.Label(f, text="Deploy solar panels? (Y/N):")
-        self.deploy_label.grid(row=row, column=0)
-        self.deploy_input = tk.Entry(f)
-        self.deploy_input.insert(0, tf2yn(params.deploy_solar_panels_and_antennae))
-        self.deploy_input.grid(row=row, column=1)
-        row += 1
-
-        self.confirm_button = tk.Button(f, text="Confirm and launch!", command=self.sendParams)
-        self.confirm_button.grid(row=row, column=0, columnspan=2)
-
-        root.mainloop()
-
-    def sendParams(self):
-        p = self.params
-        p.target_apoapsis = float(self.target_ap_input.get())
-        p.target_inclination = float(self.target_inc_input.get())
-        p.target_roll = float(self.target_roll_input.get())
-        p.do_staging = yn2tf(self.stage_input.get())
-        p.deploy_solar_panels_and_antennae = yn2tf(self.deploy_input.get())
-        self.root.destroy() 
     
 
 def main():
@@ -105,14 +38,6 @@ def main():
     params = ascent_parameters()
     launch_gui(params)
     ascent(conn, params)
-
-
-def get_resources(vessel):
-    # Get the amount of solid and liquid fuel left in the craft
-    res = []
-    for fuel in FUEL_TYPES:
-        res.append(vessel.resources.amount(fuel))
-    return res
 
 
 def ascent(conn, params):
@@ -212,20 +137,6 @@ def ascent(conn, params):
         deploy_stuff(vessel)
 
     perform_circ_burn(conn)
-    
-
-def deploy_stuff(vessel):
-    # Deploy solar panels and antennae
-    try:
-        for panel in vessel.parts.solar_panels:
-            panel.deployed = True
-    except:
-        print('Solar panel(s) could not be deployed.')
-    try:
-        for antenna in vessel.parts.antennas:
-            antenna.deployed = True
-    except:
-        print('Antenna(s) could not be deployed.')
 
 
 def perform_circ_burn(conn):
@@ -252,6 +163,7 @@ def perform_circ_burn(conn):
     print('Eccentricity:',round(vessel.orbit.eccentricity,4))
     print('Time elapsed:',round(vessel.met,1))
     print('\n')       
+
 
 if __name__ == "__main__":
     main()

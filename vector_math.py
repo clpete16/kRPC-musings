@@ -27,7 +27,7 @@ def angle_between_vectors(u, v):
         return 0
     um = magnitude(u)
     vm = magnitude(v)
-    return math.acos(dp / (um*vm)) * (180. / math.pi)
+    return math.acos(dp / (um*vm))
 
 
 def vector_subtraction(u, v):

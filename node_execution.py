@@ -63,7 +63,6 @@ def execute_node(conn):
 
     # Perform the burn. 
     # Stop if less than 0.025 m/s remaining, burning against node, or node deleted.
-    dv_old = node.remaining_delta_v
     dv_min = node.remaining_delta_v
     while node.remaining_delta_v > 0.025 and get_node(vessel):
         dv_min = min(node.remaining_delta_v, dv_min)
@@ -72,12 +71,13 @@ def execute_node(conn):
             vessel.control.throttle = node.remaining_delta_v / acc
             if node.remaining_delta_v < 4 * acc and scen.warp_rate != 1:
                 scen.physics_warp_factor = 0
+            else:
+                ap.target_direction = node.remaining_burn_vector(rf)
         except ZeroDivisionError:
             # Zero acceleration == out of fuel
             vessel.control.activate_next_stage()
-        if node.remaining_delta_v > 1.1*dv_min:
+        if node.remaining_delta_v > 1.05*dv_min:
             break
-        dv_old = node.remaining_delta_v
     
     # Clean up
     print('\nExecution complete.')

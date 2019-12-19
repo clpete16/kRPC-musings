@@ -216,13 +216,11 @@ def ascent(conn, params):
 def deploy_stuff(vessel):
     # Deploy solar panels and antennae
     try:
-        for panel in vessel.parts.solar_panels:
-            panel.deployed = True
+        vessel.control.solar_panels = True
     except:
         print('Solar panel(s) could not be deployed.')
     try:
-        for antenna in vessel.parts.antennas:
-            antenna.deployed = True
+        vessel.control.antennas = True
     except:
         print('Antenna(s) could not be deployed.')
 
@@ -251,6 +249,7 @@ def perform_circ_burn(conn):
     print('Eccentricity:',round(vessel.orbit.eccentricity,4))
     print('Time elapsed:',round(vessel.met,1))
     print('\n')       
+
 
 if __name__ == "__main__":
     main()
