@@ -15,6 +15,7 @@ Configured for Stock Solar System.
 
 FUEL_TYPES = ['SolidFuel','LiquidFuel']
 
+
 class ascent_parameters:
     def __init__(self,
                 TARGET_AP = 100000,
@@ -28,6 +29,11 @@ class ascent_parameters:
         self.target_roll = TARGET_ROLL
         self.do_staging = DO_STAGING
         self.deploy_solar_panels_and_antennae = DEPLOY_SP_ANT
+
+        self.atmosphere_height = 70000
+        self.gravity_turn_1 = 18000
+        self.gravity_turn_2 = 42000
+        self.minimum_angle = 5
 
 
 class launch_gui:
@@ -118,14 +124,13 @@ def ascent(conn, params):
     # Ascend to a sub-orbital trajectory with apoapsis TARGET_AP then circularize
     
     vessel = conn.space_center.active_vessel
-
     start_time = conn.space_center.ut
 
     # Activate ACS
     srf_frame = vessel.orbit.body.reference_frame
     ap = vessel.auto_pilot
     target_heading = 90 - params.target_inclination
-    ap.target_pitch_and_heading(90,target_heading)
+    ap.target_pitch_and_heading(90, target_heading)
     ap.target_roll = params.target_roll
     ap.engage()
 
@@ -138,8 +143,8 @@ def ascent(conn, params):
     vessel.control.activate_next_stage()
 
     # Sub-orbital ascent parameters
-    gravity_turn_1 = 18000
-    gravity_turn_2 = 42000
+    gravity_turn_1 = params.gravity_turn_1
+    gravity_turn_2 = params.gravity_turn_2
     stage_num = 1
     fairingDeployed = False
     res_old = get_resources(vessel)
@@ -152,7 +157,6 @@ def ascent(conn, params):
 
         alt = vessel.flight(srf_frame).mean_altitude
         apoap = vessel.orbit.apoapsis_altitude
-        heat_flux = 0.001*vessel.flight(srf_frame).dynamic_pressure*vessel.flight(srf_frame).speed
         ut = conn.space_center.ut
 
         if ut < start_time:
@@ -178,7 +182,7 @@ def ascent(conn, params):
             res_old = res
 
         # Deploy fairings
-        if alt > 50000 and heat_flux < 1135 and not fairingDeployed:
+        if alt > 5 / 7 * params.atmosphere_height and not fairingDeployed:
             for fairing in vessel.parts.fairings:
                 fairing.jettison()
             fairingDeployed = True
@@ -186,13 +190,13 @@ def ascent(conn, params):
         # Gravity Turns
         # To 45 degrees by turn 1 altitude until turn 2 altitude
         if alt < gravity_turn_1 and alt >= 300:
-            ap.target_pitch_and_heading(85 - 40 * alt / gravity_turn_1, target_heading)
+            ap.target_pitch = 85 - 40 * alt / gravity_turn_1
         # To 5 degrees by turn 2 altitude
         elif gravity_turn_2 > alt >= gravity_turn_1 and apoap < params.target_apoapsis:
-            ap.target_pitch_and_heading(45 - 40 * (alt - gravity_turn_1) / (gravity_turn_2 - gravity_turn_1), target_heading)
+            ap.target_pitch = 45 - (45 - params.minimum_angle) * (alt - gravity_turn_1) / (gravity_turn_2 - gravity_turn_1)
         # hold 5 degrees
         elif alt >= gravity_turn_2 and apoap < params.target_apoapsis:
-            ap.target_pitch_and_heading(5,target_heading)
+            ap.target_pitch = params.minimum_angle
         # Until target apoapsis reached
         elif apoap > params.target_apoapsis:
             vessel.control.throttle = 0
@@ -200,17 +204,17 @@ def ascent(conn, params):
 
         # Throttle back when nearing target apoapsis
         apoapse_error = abs(apoap - params.target_apoapsis)
-        if apoapse_error < 2000:
+        if apoapse_error < 1000:
             if conn.space_center.warp_rate != 1:
                 conn.space_center.physics_warp_factor = 0
-            vessel.control.throttle = max(0.25, apoapse_error / 1000)
+            vessel.control.throttle = max(0.25, apoapse_error / 500)
 
         time.sleep(0.1)
 
     if params.deploy_solar_panels_and_antennae:
         deploy_stuff(vessel)
 
-    perform_circ_burn(conn)
+    perform_circ_burn(conn, params)
     
 
 def deploy_stuff(vessel):
@@ -225,7 +229,7 @@ def deploy_stuff(vessel):
         print('Antenna(s) could not be deployed.')
 
 
-def perform_circ_burn(conn):
+def perform_circ_burn(conn, params):
     # Perform the circularization burn using the node_execution file
 
     vessel = conn.space_center.active_vessel
@@ -234,7 +238,7 @@ def perform_circ_burn(conn):
     srf_frame = vessel.orbit.body.reference_frame
     alt = vessel.flight(srf_frame).mean_altitude
     node = circ_node_ap(conn)
-    while alt < 70000:
+    while alt < params.atmosphere_height:
         node.remove()
         node = circ_node_ap(conn)
         alt = vessel.flight(srf_frame).mean_altitude
@@ -246,8 +250,8 @@ def perform_circ_burn(conn):
     print('\nFinished!')
     print('Apoapse Altitude:',round(vessel.orbit.apoapsis_altitude))
     print('Periapse Altitude:',round(vessel.orbit.periapsis_altitude))
-    print('Eccentricity:',round(vessel.orbit.eccentricity,4))
-    print('Time elapsed:',round(vessel.met,1))
+    print('Eccentricity:',round(vessel.orbit.eccentricity, 4))
+    print('Time elapsed:',round(vessel.met, 1))
     print('\n')       
 
 
