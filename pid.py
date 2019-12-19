@@ -1,5 +1,4 @@
 import time
-import krpc
 
 '''
 PID class derived from Art Whaley's example
