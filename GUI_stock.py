@@ -11,7 +11,6 @@ from circ_at_ap import circ_node_ap
 from circ_at_pe import circ_node_pe
 
 '''
-GUI to run commands and see telemetry with
 Configured for Stock Solar System
 '''
 

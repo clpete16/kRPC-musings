@@ -2,9 +2,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 
 '''
-Add sub-GUIs for each command that needs its own 
-    parameters or readouts (launch, resonant orbits, etc.)
-Add more things
+Primary GUI to display telemetry and house commands
 '''
 
 class Telemetry:
