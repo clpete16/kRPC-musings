@@ -5,6 +5,10 @@ import tkinter.ttk as ttk
 Primary GUI to display telemetry and house commands
 '''
 
+# TO DO:
+# Add dV etc. stats when in hangar
+# Other stuff idk
+
 class Telemetry:
     def __init__(self, conn):
         vessel = conn.space_center.active_vessel
@@ -93,6 +97,7 @@ class GUI:
             # Telemetry only valid when piloting a spacecraft
             telem = Telemetry(conn)
             self.bottomFrame.grid_forget()
+            self.rightFrame.grid(row = 0, column=2)
 
             self.apoapsis_readout.configure(text=m_to_xm(telem.apoapsis))
             self.time_to_apoapsis_readout.configure(text=(str(round(telem.time_to_apo,1)) + " s"))
@@ -101,17 +106,15 @@ class GUI:
             self.velocity_readout.configure(text=(str(round(telem.velocity,1)) + " m/s"))      
             self.altitude_readout.configure(text=m_to_xm(telem.altitude))
         else:
-            self.display_telemetry_failure()
+            self.apoapsis_readout.configure(text="N/A")
+            self.time_to_apoapsis_readout.configure(text="N/A")
+            self.periapsis_readout.configure(text="N/A")
+            self.time_to_periapsis_readout.configure(text="N/A")
+            self.velocity_readout.configure(text="N/A")  
+            self.altitude_readout.configure(text="N/A")
+            self.rightFrame.grid_forget()
         
         self.root.after(100, self.display_telemetry)
-
-    def display_telemetry_failure(self):
-        self.apoapsis_readout.configure(text="N/A")
-        self.time_to_apoapsis_readout.configure(text="N/A")
-        self.periapsis_readout.configure(text="N/A")
-        self.time_to_periapsis_readout.configure(text="N/A")
-        self.velocity_readout.configure(text="N/A")  
-        self.altitude_readout.configure(text="N/A")
 
     def quitApp(self):
         self.root.destroy()
