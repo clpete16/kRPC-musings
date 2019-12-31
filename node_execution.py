@@ -70,6 +70,7 @@ def execute_node(conn):
             acc = vessel.available_thrust / vessel.mass
             vessel.control.throttle = node.remaining_delta_v / acc
             if node.remaining_delta_v < 4 * acc and scen.warp_rate != 1:
+                ap.target_direction = vessel.direction(rf)
                 scen.physics_warp_factor = 0
             else:
                 ap.target_direction = node.remaining_burn_vector(rf)

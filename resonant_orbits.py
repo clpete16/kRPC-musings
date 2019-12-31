@@ -55,7 +55,7 @@ class resonant_gui:
         self.insertion_label = tk.Label(f, text="Insertion burn? (Y/N):")
         self.insertion_label.grid(row=row, column=0)
         self.insertion_input = tk.Entry(f)
-        self.insertion_input.insert(0, params.insertion)
+        self.insertion_input.insert(0, tf2yn(params.insertion))
         self.insertion_input.grid(row=row, column=1)
         row += 1
 
@@ -69,13 +69,6 @@ class resonant_gui:
         p.num_sats = float(self.num_input.get())
         p.insertion = yn2tf(self.insertion_input.get())
         self.root.destroy()
-
-
-def main():
-    connection = krpc.connect(name="Relay Auto-pilot")
-    mission_parameters = resonant_parameters()
-    resonant_gui(mission_parameters)
-    set_resonant_orbit(connection, mission_parameters)
 
 
 def set_resonant_orbit(conn, params):
@@ -124,10 +117,17 @@ def set_resonant_orbit(conn, params):
         v1 = m.sqrt(mu * (2 / apoapsis - 1 / a1))
 
         a2 = (mu * (T_res / 2 / m.pi)**2)**(1 / 3)
-        v2 = m.sqrt(mu * (1 / a2))
+        v2 = m.sqrt(mu * (2 / apoapsis - 1 / a2))
 
         vessel.control.add_node(ut + vessel.orbit.time_to_apoapsis, 
                                 prograde=(v2-v1))
+
+
+def main():
+    connection = krpc.connect(name="Relay Auto-pilot")
+    mission_parameters = resonant_parameters()
+    resonant_gui(mission_parameters)
+    set_resonant_orbit(connection, mission_parameters)
 
 
 if __name__ == "__main__" : 
