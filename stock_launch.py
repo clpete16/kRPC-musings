@@ -9,8 +9,15 @@ from GUI import yn2tf, tf2yn
 
 '''
 Launch Auto Pilot for a linearly staged launch vehicle.
-Should  work for other vehicles with manual staging.
+Will also assume that the first stage may have SRBs.
+Should work for other vehicles with manual staging.
 Configured for Stock Solar System.
+'''
+
+'''
+TO DO
+PID / More robust altitude control
+PID / More robust inclination control
 '''
 
 FUEL_TYPES = ['SolidFuel','LiquidFuel']
@@ -31,9 +38,9 @@ class ascent_parameters:
         self.deploy_solar_panels_and_antennae = DEPLOY_SP_ANT
 
         self.atmosphere_height = 70000
-        self.gravity_turn_1 = 18000
-        self.gravity_turn_2 = 42000
-        self.minimum_angle = 5
+        self.gravity_turn_1 = 22000
+        self.gravity_turn_2 = 50000
+        self.minimum_angle = 0
 
 
 class launch_gui:
@@ -145,10 +152,14 @@ def ascent(conn, params):
     # Sub-orbital ascent parameters
     gravity_turn_1 = params.gravity_turn_1
     gravity_turn_2 = params.gravity_turn_2
-    stage_num = 1
     fairingDeployed = False
     res_old = get_resources(vessel)
     time.sleep(0.5)
+
+    if vessel.resources.max('SolidFuel') > 0:
+        srbDeployed = False
+    else:
+        srbDeployed = True
 
     while True:
 
@@ -158,6 +169,7 @@ def ascent(conn, params):
         alt = vessel.flight(srf_frame).mean_altitude
         apoap = vessel.orbit.apoapsis_altitude
         ut = conn.space_center.ut
+        inc = vessel.orbit.inclination / m.pi * 180
 
         if ut < start_time:
             # Loaded a quicksave or reset the launch
@@ -172,11 +184,12 @@ def ascent(conn, params):
                 if vessel.resources.max(FUEL_TYPES[i]) > 0:
                     if res[i] < res_old[i]:
                         any_consuming = True
+            if not srbDeployed and res[0] ==  res_old[0]:
+                any_consuming = False
+                srbDeployed = True
             if not any_consuming:
                 conn.space_center.physics_warp_factor = 0
                 time.sleep(0.2)
-                print('Separating stage ' + str(stage_num) + '.')
-                stage_num += 1
                 vessel.control.activate_next_stage()
                 time.sleep(0.2)
             res_old = res
@@ -186,6 +199,10 @@ def ascent(conn, params):
             for fairing in vessel.parts.fairings:
                 fairing.jettison()
             fairingDeployed = True
+
+        # Deploy sp & ant
+        if alt > params.atmosphere_height and params.deploy_solar_panels_and_antennae:
+            deploy_stuff(vessel)
         
         # Gravity Turns
         # To 45 degrees by turn 1 altitude until turn 2 altitude
@@ -208,6 +225,17 @@ def ascent(conn, params):
             if conn.space_center.warp_rate != 1:
                 conn.space_center.physics_warp_factor = 0
             vessel.control.throttle = max(0.25, apoapse_error / 500)
+
+        # Adjust to target inclination
+        inclination_diff = inc - params.target_inclination
+        if inclination_diff > 0.05:
+            # Overshot inclination
+            ap.target_heading = 90 - params.target_inclination + min(8, inclination_diff) + 1
+        elif inclination_diff < -0.05:
+            # Undershot inclination
+            ap.target_heading = 90 - params.target_inclination + max(-8, inclination_diff) - 1
+        else:
+            ap.target_heading = 90 - params.target_inclination
 
         time.sleep(0.1)
 

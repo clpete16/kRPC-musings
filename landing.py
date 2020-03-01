@@ -7,6 +7,7 @@ import krpc
 import pid
 import time
 import random
+import vector_math as vm
 
 '''
 VERY WIP
@@ -17,7 +18,6 @@ Thoughts:
 Merge telemetry class with spacecraft controls
 Figure out how to raycast for radar altitude
 Better attitude controls on descent
-Enter velocity control mode when close to the ground
 '''
 
 '''
@@ -35,7 +35,10 @@ class Telemetry:
         self.ap = self.vessel.auto_pilot
 
         self.g = self.body.surface_gravity
-        self.isp = self.vessel.kerbin_sea_level_specific_impulse
+        if self.body == 'kerbin':
+            self.isp = self.vessel.kerbin_sea_level_specific_impulse
+        else:
+            self.isp = self.vessel.specific_impulse
 
         self.descending = False
         self.landed = False
@@ -46,8 +49,7 @@ class Telemetry:
     def update_telem(self):
         vessel = self.vessel
         body = self.body
-        ref = body.reference_frame
-        flight = vessel.flight(ref)
+        flight = vessel.flight(body.reference_frame)
 
         self.vertical_speed = flight.vertical_speed
         self.horizontal_speed = flight.horizontal_speed
@@ -56,8 +58,7 @@ class Telemetry:
         self.lon = flight.longitude
         
         self.surface_height = body.surface_height(self.lat, self.lon)
-        box = vessel.bounding_box(vessel.reference_frame)
-        self.altitude = box[0][1] + flight.mean_altitude - self.surface_height
+        self.altitude = flight.mean_altitude - self.surface_height
 
         self.aero_forces = list(flight.aerodynamic_force)
         for i in range(len(self.aero_forces)):
@@ -76,9 +77,9 @@ class Telemetry:
     def create_throttle_PID(self):
         # Throttle will be controlled based on the estimated burn altitude
         self.throttle_PID = pid.PID()
-        self.throttle_PID.Kp = 0.025
-        self.throttle_PID.Ki = 0.01
-        self.throttle_PID.Kd = 0.001
+        self.throttle_PID.Kp = 0.040
+        self.throttle_PID.Ki = 0.009
+        self.throttle_PID.Kd = 0.0015
         self.throttle_PID.clampLow = 0
         self.throttle_PID.clampHi = 1
         self.throttle_PID.clampI = 100
@@ -90,13 +91,15 @@ class Telemetry:
 
             burn_altitude = estimate_burn_altitude(self)
             if self.vertical_speed < -1 and self.altitude > 1:
+                point_retro_final_descent(self.conn)
+                self.vessel.auto_pilot.engage()
                 if burn_altitude > self.altitude:
                     self.descending = True
                     print('Estimated altitude: ' + str(burn_altitude))
                     print('Initiated at altitude: ' + str(self.altitude))
                     self.descent_control_loop()
             
-            time.sleep(0.1)
+            time.sleep(0.05)
 
     def descent_control_loop(self):
         final_descent = True
@@ -105,20 +108,21 @@ class Telemetry:
             self.update_telem()
             vessel = self.vessel
 
-            if self.vertical_speed <= -10:
-                burn_altitude = estimate_burn_altitude(self) + 1
+            if self.vertical_speed <= -3:
+                burn_altitude = estimate_burn_altitude(self) + 5
                 vessel.control.throttle = self.throttle_PID.update(self.altitude - burn_altitude)
                 point_retro_final_descent(self.conn)
 
-            elif self.vertical_speed > -10:
+            elif self.vertical_speed > -3:
                 if final_descent:
-                    vessel.auto_pilot.reference_frame = vessel.surface_reference_frame
-                    vessel.auto_pilot.target_direction = (1, 0, 0)
-                    self.throttle_PID.set_setpoint(-1)
-                    self.throttle_PID.Kp = 0.4
-                    self.throttle_PID.Kd = 0.05
+                    point_retro_final_descent(self.conn)
+                    self.throttle_PID.set_setpoint(-0.5)
+                    self.throttle_PID.Kp = 0.40
+                    self.throttle_PID.Ki = 0.0
+                    self.throttle_PID.Kd = 0.01
                     final_descent = False
-    
+
+                point_retro_final_descent(self.conn)
                 vessel.control.throttle = self.throttle_PID.update(self.vertical_speed)
 
             if self.altitude < 0 or vessel.situation == 'landed' or self.vertical_speed > 0:
@@ -128,7 +132,7 @@ class Telemetry:
                 vessel.control.throttle = 0
                 vessel.control.rcs = False
 
-            time.sleep(0.1)
+            time.sleep(0.05)
         
         self.main_control_loop()
 
@@ -211,18 +215,44 @@ class GUI:
 
 
 def point_retro_final_descent(conn):
+    # Point retrograde to slow down both vertical and horizontal velocity
+    # Points further horizontal than 'necessary' to assure a vertical arrival
     vessel = conn.space_center.active_vessel
-    ap = vessel.auto_pilot
-    ap.reference_frame = vessel.surface_velocity_reference_frame
-    ap.target_direction = (0, -1, 0)
-    ap.engage()
+    north = (0, 1, 0)
+    east = (0, 0, 1)
+
+    ref_frame = conn.space_center.ReferenceFrame.create_hybrid(
+        position=vessel.orbit.body.reference_frame,
+        rotation=vessel.surface_reference_frame)
+    vel = vessel.flight(ref_frame).velocity
+    retrograde = vm.scalar_multiplication(1/vm.magnitude(vel), vel)
+    retrograde = vm.scalar_multiplication(-1, retrograde)
+
+    horizon_plane = vm.cross_product(north, east)
+    pitch = 1.1 * math.acos(vm.dot_product(horizon_plane, retrograde)) * 180 / math.pi
+    pitch = 90 - pitch
+
+    if vel[0] > -3 and pitch < 80:
+        pitch = 80
+
+    retrograde = list(retrograde)
+    retrograde[0] = 0
+    angle_from_east = vm.angle_between_vectors(east, retrograde) * 180 / math.pi
+    angle_from_north = vm.angle_between_vectors(north, retrograde) * 180 / math.pi
+    if angle_from_east > angle_from_north:
+        heading = 360 - angle_from_north
+    else:
+        heading = angle_from_north
+
+    vessel.auto_pilot.target_pitch_and_heading(pitch, heading)
 
 
 def estimate_burn_altitude(telem):
     # Estimate the burn altitude using kinematic equation V^2 = V0^2 + 2*a*h
-    thrust_force = telem.max_thrust * math.sin(telem.pitch)
+    # 90% throttle to allow for error
+    thrust_force = 0.90 * telem.max_thrust * math.sin(telem.pitch)
     acceleration = thrust_force / telem.mass - telem.g
-    return 1.1*(telem.vertical_speed**2 - 0.5**2) / (2 * acceleration)
+    return (telem.vertical_speed**2 - 0.5**2) / (2 * acceleration)
 
 
 def initiate_test(conn):
@@ -248,9 +278,7 @@ def initiate_test(conn):
 
 def main():
     conn = krpc.connect("GUI Program")
-    global gui
-    gui = GUI(conn)
-    Telemetry(conn, gui)
+    Telemetry(conn)
 
 
 if __name__ == "__main__":

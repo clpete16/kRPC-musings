@@ -4,6 +4,7 @@ import rss_launch
 import node_execution
 import resonant_orbits
 import intercept
+import landing
 
 from multiprocessing import Process
 
@@ -15,7 +16,7 @@ Configured for Real Solar System
 '''
 
 def doAscent():
-    gui.message("Performing ascent.")
+    print('Attempting ascent')
     try:
         ascent_process = Process(target=rss_launch.main)
         ascent_process.start()
@@ -23,16 +24,17 @@ def doAscent():
         print('Ascent failed')
 
 
-def doIntercept():
+def doIntercept(conn):
+    print('Attempting intercept')
     try:
-        ascent_process = Process(target=intercept.main)
+        ascent_process = Process(target=intercept.main(conn))
         ascent_process.start()
     except:
         print('Intercept failed')
 
 
 def doExecuteNode():
-    gui.message("Executing next node.")
+    print('Attempting node execution')
     try:
         node_process = Process(target=node_execution.main)
         node_process.start()
@@ -49,12 +51,21 @@ def doCircNodeAp(conn):
 
 
 def doResonantOrbit():
-    gui.message("Entering resonant orbit.")
+    print('Attempting resonant orbit')
     try:
         node_process = Process(target=resonant_orbits.main)
         node_process.start()
     except:
         print('Execution failed')
+
+
+def land():
+    print('Attempting landing')
+    try:
+        landing_process = Process(target=landing.main)
+        landing_process.start()
+    except:
+        print('Landing script failed')
 
 
 def add_commands_to_gui(gui, conn):
@@ -65,7 +76,8 @@ def add_commands_to_gui(gui, conn):
     GUI.addButton(lf, "Circularize at Periapsis", lambda: doCircNodePe(conn))
     GUI.addButton(lf, "Circularize at Apoapsis", lambda: doCircNodeAp(conn))
     GUI.addButton(lf, "Create resonant orbit", lambda: doResonantOrbit())
-    GUI.addButton(lf, "Intercept a target", lambda: doIntercept())
+    GUI.addButton(lf, "Intercept a target", lambda: doIntercept(conn))
+    GUI.addButton(lf, "Attempt a landing", lambda: land())
     GUI.addLabel(lf, "")
 
 

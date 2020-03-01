@@ -9,6 +9,8 @@ Primary GUI to display telemetry and house commands
 # Add dV etc. stats when in hangar
 # Other stuff idk
 
+INFO_FRAME = False
+
 class Telemetry:
     def __init__(self, conn):
         vessel = conn.space_center.active_vessel
@@ -29,9 +31,8 @@ class GUI:
         root = self.root
         root.resizable(width=False, height=False)
 
-        # Makes [x] button do quitApp first and keeps window on top
+        # Makes [x] button do quitApp first
         root.protocol('WM_DELETE_WINDOW', self.quitApp)
-        root.wm_attributes("-topmost", 1)
 
         # Left Frame, holds general commands
         self.leftFrame = tk.Frame(root)
@@ -43,7 +44,7 @@ class GUI:
         # Right Frame, holds telemetry
         self.rightFrame = tk.Frame(root)
         rf = self.rightFrame
-        rf.grid(row = 0, column=2)
+        # Don't put into root yet, in case not showing telemetry
         
         # Bottom Frame, holds messages (warnings, etc.)
         # Typical use is to hide message after being resolved using .grid_forget()
@@ -53,10 +54,6 @@ class GUI:
         tk.Label(bf, text="").pack()
         self.message_label = tk.Label(bf)
         self.message_label.pack()
-
-        # Static separators between frames
-        ttk.Separator(root, orient='vertical').grid(row=0, column=1, sticky='ns')
-        ttk.Separator(root, orient='horizontal').grid(row=1, column = 0, columnspan=3, sticky='ew')
         
         # Telemetry out
         tk.Label(rf, text="Apoapsis:").grid(row=0, column=0)
@@ -83,38 +80,48 @@ class GUI:
         self.altitude_readout = tk.Label(rf)
         self.altitude_readout.grid(row=5, column=1)
         
-        self.display_telemetry()
+        if INFO_FRAME:
+            # Draw the right telemetry frame
+            rf.grid(row = 0, column=2)
+            ttk.Separator(root, orient='vertical').grid(row=0, column=1, sticky='ns')
+            ttk.Separator(root, orient='horizontal').grid(row=1, column = 0, columnspan=3, sticky='ew')
+        self.refresh_gui()
         
     def message(self, txt):
         # Send a message to the bottom message frame
         self.message_label.configure(text=txt)
-        self.bottomFrame.grid(row = 2, column = 0, columnspan=3)
+        self.bottomFrame.grid(row=2, column=0, columnspan=3)
 
-    def display_telemetry(self):
+    def refresh_gui(self):
         conn = self.conn
-        
-        if conn.krpc.current_game_scene == conn.krpc.GameScene.flight:
-            # Telemetry only valid when piloting a spacecraft
-            telem = Telemetry(conn)
-            self.bottomFrame.grid_forget()
-            self.rightFrame.grid(row = 0, column=2)
 
-            self.apoapsis_readout.configure(text=m_to_xm(telem.apoapsis))
-            self.time_to_apoapsis_readout.configure(text=(str(round(telem.time_to_apo,1)) + " s"))
-            self.periapsis_readout.configure(text=m_to_xm(telem.periapsis))
-            self.time_to_periapsis_readout.configure(text=(str(round(telem.time_to_peri,1)) + " s"))
-            self.velocity_readout.configure(text=(str(round(telem.velocity,1)) + " m/s"))      
-            self.altitude_readout.configure(text=m_to_xm(telem.altitude))
+        if conn.krpc.current_game_scene == conn.krpc.GameScene.flight:
+            self.bottomFrame.grid_forget()
+            self.root.wm_attributes("-topmost", 1)
+            self.root.deiconify()
+            
         else:
+            self.root.wm_attributes("-topmost", 0)
+            self.root.withdraw()
             self.apoapsis_readout.configure(text="N/A")
             self.time_to_apoapsis_readout.configure(text="N/A")
             self.periapsis_readout.configure(text="N/A")
             self.time_to_periapsis_readout.configure(text="N/A")
             self.velocity_readout.configure(text="N/A")  
             self.altitude_readout.configure(text="N/A")
-            self.rightFrame.grid_forget()
-        
-        self.root.after(100, self.display_telemetry)
+
+        self.root.after(100, self.refresh_gui)
+
+    def display_telemetry(self):
+        conn = self.conn
+        telem = Telemetry(conn)
+
+        self.apoapsis_readout.configure(text=m_to_xm(telem.apoapsis))
+        self.time_to_apoapsis_readout.configure(text=(str(round(telem.time_to_apo,1)) + " s"))
+        self.periapsis_readout.configure(text=m_to_xm(telem.periapsis))
+        self.time_to_periapsis_readout.configure(text=(str(round(telem.time_to_peri,1)) + " s"))
+        self.velocity_readout.configure(text=(str(round(telem.velocity,1)) + " m/s"))      
+        self.altitude_readout.configure(text=m_to_xm(telem.altitude))
 
     def quitApp(self):
         self.root.destroy()

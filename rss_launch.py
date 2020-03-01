@@ -26,7 +26,7 @@ class ascent_parameters:
         self.deploy_solar_panels_and_antennae = DEPLOY_SP_ANT
     
         self.atmosphere_height = 140000
-        self.gravity_turn_1 = 30000
+        self.gravity_turn_1 = 35000
         self.gravity_turn_2 = 120000
         self.minimum_angle = 10
 
