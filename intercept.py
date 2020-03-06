@@ -89,7 +89,9 @@ def calc_transfer_date(ut, ref, vessel, targ, mu):
     x = (1, 0, 0)
     refining = False
 
-    while True:
+    start = time.time()
+
+    while time.time() - start < 5:
         ra_vec = vessel.orbit.position_at(ut, ref)
         rb_vec = targ.orbit.position_at(ut, ref)
 
@@ -127,6 +129,8 @@ def calc_transfer_date(ut, ref, vessel, targ, mu):
 
         # Else keep looking
         ut += timestep
+    
+    print("Intercept calculator timed out.")
 
 
 def main(conn):
