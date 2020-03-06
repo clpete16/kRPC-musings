@@ -6,6 +6,8 @@ import tkinter as tk
 from node_execution import execute_node
 from circ_at_ap import circ_node_ap
 from GUI import yn2tf, tf2yn
+import vector_math as vm
+import pid
 
 '''
 Launch Auto Pilot for a linearly staged launch vehicle.
@@ -38,8 +40,8 @@ class ascent_parameters:
         self.deploy_solar_panels_and_antennae = DEPLOY_SP_ANT
 
         self.atmosphere_height = 70000
-        self.gravity_turn_1 = 22000
-        self.gravity_turn_2 = 50000
+        self.gravity_turn_1 = 17500
+        self.gravity_turn_2 = 35000
         self.minimum_angle = 0
 
 
@@ -141,6 +143,13 @@ def ascent(conn, params):
     ap.target_roll = params.target_roll
     ap.engage()
 
+    # Inclination controller
+    inc_pid = pid.PID(1, 0.5, 0.01)
+    inc_pid.clampHi = 15
+    inc_pid.clampLow = -15
+    inc_pid.clampI = 10
+    north = (0, 1, 0)
+
     # Launch!
     vessel.control.throttle = 1
     for i in range(3):
@@ -206,7 +215,7 @@ def ascent(conn, params):
         
         # Gravity Turns
         # To 45 degrees by turn 1 altitude until turn 2 altitude
-        if alt < gravity_turn_1 and alt >= 300:
+        if alt < gravity_turn_1 and alt >= 100:
             ap.target_pitch = 85 - 40 * alt / gravity_turn_1
         # To 5 degrees by turn 2 altitude
         elif gravity_turn_2 > alt >= gravity_turn_1 and apoap < params.target_apoapsis:
@@ -227,15 +236,14 @@ def ascent(conn, params):
             vessel.control.throttle = max(0.25, apoapse_error / 500)
 
         # Adjust to target inclination
+        prograde = vessel.flight().prograde
+        angle_from_north = vm.angle_between_vectors(north, prograde) * 180 / m.pi
+        if angle_from_north > 90:
+            inc *= -1
         inclination_diff = inc - params.target_inclination
-        if inclination_diff > 0.05:
-            # Overshot inclination
-            ap.target_heading = 90 - params.target_inclination + min(8, inclination_diff) + 1
-        elif inclination_diff < -0.05:
-            # Undershot inclination
-            ap.target_heading = 90 - params.target_inclination + max(-8, inclination_diff) - 1
-        else:
-            ap.target_heading = 90 - params.target_inclination
+        if abs(inclination_diff) < 0.05:
+            inc_pid.I = 0
+        ap.target_heading = 90 - params.target_inclination - inc_pid.update(inclination_diff)
 
         time.sleep(0.1)
 
@@ -276,10 +284,11 @@ def perform_circ_burn(conn, params):
     time.sleep(0.5)
 
     print('\nFinished!')
-    print('Apoapse Altitude:',round(vessel.orbit.apoapsis_altitude))
-    print('Periapse Altitude:',round(vessel.orbit.periapsis_altitude))
-    print('Eccentricity:',round(vessel.orbit.eccentricity, 4))
-    print('Time elapsed:',round(vessel.met, 1))
+    print('Apoapse Altitude:', round(vessel.orbit.apoapsis_altitude))
+    print('Periapse Altitude:', round(vessel.orbit.periapsis_altitude))
+    print('Eccentricity:', round(vessel.orbit.eccentricity, 4))
+    print('Inclination: ', round(vessel.orbit.inclination * 180 / m.pi, 1))
+    print('Time elapsed:', round(vessel.met, 1))
     print('\n')       
 
 
