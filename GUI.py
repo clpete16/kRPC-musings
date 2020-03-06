@@ -33,6 +33,7 @@ class GUI:
 
         # Makes [x] button do quitApp first
         root.protocol('WM_DELETE_WINDOW', self.quitApp)
+        root.wm_attributes("-topmost", 1)
 
         # Left Frame, holds general commands
         self.leftFrame = tk.Frame(root)
@@ -85,6 +86,7 @@ class GUI:
             rf.grid(row = 0, column=2)
             ttk.Separator(root, orient='vertical').grid(row=0, column=1, sticky='ns')
             ttk.Separator(root, orient='horizontal').grid(row=1, column = 0, columnspan=3, sticky='ew')
+        self.showing = True
         self.refresh_gui()
         
     def message(self, txt):
@@ -97,12 +99,14 @@ class GUI:
 
         if conn.krpc.current_game_scene == conn.krpc.GameScene.flight:
             self.bottomFrame.grid_forget()
-            self.root.wm_attributes("-topmost", 1)
-            self.root.deiconify()
+            if not self.showing:
+                self.root.deiconify()
+                self.showing = True
             
         else:
-            self.root.wm_attributes("-topmost", 0)
-            self.root.withdraw()
+            if self.showing:
+                self.root.withdraw()
+                self.showing = False
             self.apoapsis_readout.configure(text="N/A")
             self.time_to_apoapsis_readout.configure(text="N/A")
             self.periapsis_readout.configure(text="N/A")
